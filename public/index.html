@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Improved Chat Application</title>
+    <style>
+        /* General styling */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin-top: 20px;
+            color: #4a4a4a;
+        }
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            width: 90%;
+            max-width: 600px;
+            margin-top: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        #chat-messages {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+            border-top: 1px solid #e6e6e6;
+        }
+        #chat-messages.expanded {
+            max-height: 500px;
+        }
+
+        /* Styling messages */
+        .message {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        .my-message {
+            align-self: flex-end;
+            background-color: #daf8e3;
+            color: #333;
+            border-bottom-right-radius: 5px;
+            border-top-left-radius: 15px;
+        }
+        .other-message {
+            align-self: flex-start;
+            background-color: #e9ecef;
+            color: #333;
+            border-top-right-radius: 15px;
+            border-bottom-left-radius: 5px;
+        }
+
+        /* User List */
+        #user-list {
+            padding: 15px 20px;
+        }
+        #user-list ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        #user-list li {
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .online {
+            background-color: #4caf50;
+        }
+        .offline {
+            background-color: #bbb;
+        }
+
+        /* Chat Input */
+        #chat-input {
+            display: flex;
+            padding: 10px 20px;
+            border-top: 1px solid #e6e6e6;
+            align-items: center;
+        }
+        #message-input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+            outline: none;
+        }
+        #chat-input button {
+            margin-left: 10px;
+            padding: 10px 20px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        #chat-input button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live Users: <span id="user-count">0</span></h1>
+    <div id="chat-container">
+        <div id="user-list">
+            <h3>Connected Users:</h3>
+            <ul id="usernames"></ul>
+        </div>
+
+        <div id="chat-messages"></div>
+
+        <div id="chat-input">
+            <input type="text" id="message-input" placeholder="Type a message..." onkeydown="handleEnter(event)">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let username = sessionStorage.getItem('username') || prompt("Enter your username:");
+        
+        if (!username) {
+            username = "Anonymous";
+        }
+        sessionStorage.setItem('username', username);
+
+        const userCountElement = document.getElementById('user-count');
+        const usernamesList = document.getElementById('usernames');
+        const chatMessages = document.getElementById('chat-messages');
+
+        // Establish WebSocket connection
+        ws = new WebSocket('ws://localhost:3000');
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ username }));
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            // Update user list and count
+            if (data.type === 'userList') {
+                userCountElement.textContent = data.users.filter(user => user.isOnline).length;
+                usernamesList.innerHTML = data.users.map(user => `
+                    <li>
+                        <span class="status-dot ${user.isOnline ? 'online' : 'offline'}"></span>
+                        ${user.username}
+                    </li>`).join('');
+            }
+
+            // Display new chat message
+            if (data.type === 'chat') {
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message');
+                messageElement.textContent = `${data.username}: ${data.message}`;
+                messageElement.classList.add(data.username === username ? 'my-message' : 'other-message');
+                chatMessages.appendChild(messageElement);
+
+                // Expand chat box when it overflows
+                if (chatMessages.scrollHeight > chatMessages.clientHeight) {
+                    chatMessages.classList.add('expanded');
+                }
+                chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll
+            }
+        };
+
+        function sendMessage() {
+            const messageInput = document.getElementById('message-input');
+            const message = messageInput.value;
+            if (message.trim() === '') return;
+
+            ws.send(JSON.stringify({ chatMessage: message }));
+            messageInput.value = ''; // Clear input
+        }
+
+        // Send message on Enter key
+        function handleEnter(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+    </script>
+</body>
+</html>
